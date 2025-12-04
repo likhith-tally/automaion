@@ -34,6 +34,7 @@ class CheckSuppressionResponse(BaseModel):
 
 class RemoveSuppressionResponse(BaseModel):
     """Response model for removing suppression"""
+    message: str
     email: str
     removed: bool
     suppression_id: str

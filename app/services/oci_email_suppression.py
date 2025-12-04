@@ -92,6 +92,7 @@ class EmailSuppressionService:
             self.client.delete_suppression(suppression_id)
 
             return {
+                "message": f"Email '{email}' has been successfully removed from the suppression list",
                 "email": email,
                 "removed": True,
                 "suppression_id": suppression_id,
