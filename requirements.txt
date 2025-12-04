@@ -1,0 +1,15 @@
+# FastAPI Framework
+fastapi==0.123.5
+
+# ASGI Server (to run FastAPI)
+uvicorn[standard]==0.38.0
+
+# Oracle Cloud Infrastructure SDK
+oci==2.164.0
+
+# Environment Variables Management
+python-dotenv==1.2.1
+
+# Data Validation (comes with FastAPI, but explicit for clarity)
+pydantic==2.12.5
+pydantic-settings==2.12.0
