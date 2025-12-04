@@ -3,7 +3,8 @@
     "allow": [
       "Bash(tree:*)",
       "Bash(dir:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(docker:*)"
     ],
     "deny": [],
     "ask": []
