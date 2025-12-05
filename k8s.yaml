@@ -1,16 +1,185 @@
-apiVersion: v1
-kind: Pod
+---
+# Staging Deployment
+apiVersion: apps/v1
+kind: Deployment
 metadata:
-  creationTimestamp: null
+  name: automations-staging
+  namespace: scripts
   labels:
-    run: automations
-  name: automations
+    app: automations
+    environment: staging
 spec:
-  imagePullSecrets: ocirsecret
-  containers:
-  - image: bom.ocir.io/bmbr2knaixlx/automationscripts:latest
-    name: automations
-    resources: {}
-  dnsPolicy: ClusterFirst
-  restartPolicy: Always
-status: {}
+  replicas: 2
+  selector:
+    matchLabels:
+      app: automations
+      environment: staging
+  template:
+    metadata:
+      labels:
+        app: automations
+        environment: staging
+    spec:
+      containers:
+      - name: api
+        image: bom.ocir.io/bmbr2knaixlx/automationscripts:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+
+        # Environment configuration
+        env:
+        - name: ENVIRONMENT
+          value: "staging"
+
+        # Resource limits
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+
+        # Liveness probe - restart container if unhealthy
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+
+        # Readiness probe - stop sending traffic if not ready
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 3
+
+      restartPolicy: Always
+      dnsPolicy: ClusterFirst
+
+---
+# Staging Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: automations-staging
+  namespace: scripts
+  labels:
+    app: automations
+    environment: staging
+spec:
+  type: ClusterIP
+  selector:
+    app: automations
+    environment: staging
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8000
+    protocol: TCP
+
+---
+# Production Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: automations-production
+  namespace: scripts
+  labels:
+    app: automations
+    environment: production
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: automations
+      environment: production
+  template:
+    metadata:
+      labels:
+        app: automations
+        environment: production
+    spec:
+      containers:
+      - name: api
+        image: bom.ocir.io/bmbr2knaixlx/automationscripts:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+
+        # Environment configuration
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+
+        # Resource limits (higher for production)
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+
+        # Liveness probe - restart container if unhealthy
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+
+        # Readiness probe - stop sending traffic if not ready
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 3
+
+      restartPolicy: Always
+      dnsPolicy: ClusterFirst
+
+---
+# Production Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: automations-production
+  namespace: scripts
+  labels:
+    app: automations
+    environment: production
+spec:
+  type: ClusterIP
+  selector:
+    app: automations
+    environment: production
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8000
+    protocol: TCP
