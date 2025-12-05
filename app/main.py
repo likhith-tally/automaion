@@ -5,10 +5,17 @@ Entry point for the OCI Business Logic Service
 This file bundles all routers and services into a single FastAPI application
 that can be hosted via uvicorn.
 """
-from fastapi import FastAPI
+import uuid
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.routers import email_suppression
+from app.logging_config import setup_logging, get_logger, set_request_id, clear_request_id
+import time
+
+# Configure logging
+setup_logging()
+logger = get_logger(__name__)
 
 # Create FastAPI application instance
 app = FastAPI(
@@ -28,6 +35,71 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Request logging middleware
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """
+    Middleware to log all HTTP requests with correlation IDs.
+    Adds request_id to context for the duration of the request.
+    """
+    # Generate unique request ID
+    request_id = str(uuid.uuid4())[:8]  # Short ID for readability
+    set_request_id(request_id)
+
+    # Log incoming request
+    logger.info(
+        "Request received",
+        extra={
+            "method": request.method,
+            "path": request.url.path,
+            "client_host": request.client.host if request.client else None
+        }
+    )
+
+    # Track request duration
+    start_time = time.time()
+
+    try:
+        # Process request
+        response = await call_next(request)
+
+        # Calculate duration
+        duration_ms = int((time.time() - start_time) * 1000)
+
+        # Log response
+        logger.info(
+            "Request completed",
+            extra={
+                "method": request.method,
+                "path": request.url.path,
+                "status_code": response.status_code,
+                "duration_ms": duration_ms
+            }
+        )
+
+        return response
+
+    except Exception as e:
+        # Log exception
+        duration_ms = int((time.time() - start_time) * 1000)
+        logger.error(
+            f"Request failed: {str(e)}",
+            extra={
+                "method": request.method,
+                "path": request.url.path,
+                "duration_ms": duration_ms,
+                "error": str(e)
+            },
+            exc_info=True
+        )
+        raise
+
+    finally:
+        # Clean up request context
+        clear_request_id()
+
 
 # Register routers
 app.include_router(email_suppression.router)
@@ -80,14 +152,16 @@ async def startup_event():
     Application startup event.
     Runs once when the server starts.
     """
-    print("=" * 60)
-    print(f"🚀 {settings.api_title} v{settings.api_version}")
-    print("=" * 60)
-    print(f"📍 OCI Region: {settings.oci_region}")
-    print(f"📍 Tenancy: {settings.oci_tenancy_ocid[:20]}...")
-    print(f"📚 API Documentation: http://localhost:8000/docs")
-    print(f"📚 Alternative Docs: http://localhost:8000/redoc")
-    print("=" * 60)
+    logger.info(
+        "Application starting",
+        extra={
+            "service": settings.api_title,
+            "version": settings.api_version,
+            "region": settings.oci_region,
+            "log_level": settings.log_level,
+            "log_format": settings.log_format
+        }
+    )
 
 
 # Shutdown event - runs when application stops
@@ -98,6 +172,4 @@ async def shutdown_event():
     Runs once when the server stops.
     Use this to clean up resources, close connections, etc.
     """
-    print("=" * 60)
-    print("🛑 Application shutting down...")
-    print("=" * 60)
+    logger.info("Application shutting down")

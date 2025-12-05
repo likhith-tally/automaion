@@ -7,6 +7,9 @@ from oci.auth.signers import InstancePrincipalsSecurityTokenSigner
 from oci.exceptions import ServiceError
 from typing import Dict, Optional
 from app.config import settings
+from app.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class EmailSuppressionService:
@@ -33,13 +36,28 @@ class EmailSuppressionService:
         Raises:
             ServiceError: If OCI API call fails
         """
+        logger.info("Checking suppression status", extra={"email": email})
+
         try:
+            # Log OCI API call
+            logger.info(
+                "Calling OCI API: list_suppressions",
+                extra={
+                    "email": email,
+                    "compartment_id": settings.oci_tenancy_ocid[:20] + "..."
+                }
+            )
+
             response = self.client.list_suppressions(
                 compartment_id=settings.oci_tenancy_ocid,
                 email_address=email
             )
 
             if not response.data:
+                logger.info(
+                    "Email not in suppression list",
+                    extra={"email": email, "is_suppressed": False}
+                )
                 return {
                     "email": email,
                     "is_suppressed": False,
@@ -47,6 +65,15 @@ class EmailSuppressionService:
                 }
 
             suppression = response.data[0]
+            logger.info(
+                "Email found in suppression list",
+                extra={
+                    "email": email,
+                    "is_suppressed": True,
+                    "suppression_id": suppression.id,
+                    "reason": suppression.reason
+                }
+            )
             return {
                 "email": email,
                 "is_suppressed": True,
@@ -58,6 +85,15 @@ class EmailSuppressionService:
             }
 
         except ServiceError as e:
+            logger.error(
+                f"OCI API error while checking suppression",
+                extra={
+                    "email": email,
+                    "error_code": e.code,
+                    "error_status": e.status,
+                    "error_message": e.message
+                }
+            )
             raise ServiceError(
                 status=e.status,
                 code=e.code,
@@ -79,17 +115,47 @@ class EmailSuppressionService:
             ServiceError: If OCI API call fails
             ValueError: If email is not in suppression list
         """
+        logger.info("Removing suppression", extra={"email": email})
+
         # First check if email is suppressed
         check_result = await self.check_suppression(email)
 
         if not check_result["is_suppressed"]:
+            logger.warning(
+                "Cannot remove - email not in suppression list",
+                extra={"email": email}
+            )
             raise ValueError(f"Email '{email}' is not in the suppression list")
 
         # Remove the suppression
         suppression_id = check_result["suppression"]["id"]
+        suppression_reason = check_result["suppression"]["reason"]
+
+        logger.info(
+            "Found suppression entry - proceeding with deletion",
+            extra={
+                "email": email,
+                "suppression_id": suppression_id,
+                "reason": suppression_reason
+            }
+        )
 
         try:
+            logger.info(
+                "Calling OCI API: delete_suppression",
+                extra={"email": email, "suppression_id": suppression_id}
+            )
+
             self.client.delete_suppression(suppression_id)
+
+            logger.info(
+                "Successfully removed suppression",
+                extra={
+                    "email": email,
+                    "suppression_id": suppression_id,
+                    "previous_reason": suppression_reason
+                }
+            )
 
             return {
                 "message": f"Email '{email}' has been successfully removed from the suppression list",
@@ -101,6 +167,16 @@ class EmailSuppressionService:
             }
 
         except ServiceError as e:
+            logger.error(
+                "OCI API error while removing suppression",
+                extra={
+                    "email": email,
+                    "suppression_id": suppression_id,
+                    "error_code": e.code,
+                    "error_status": e.status,
+                    "error_message": e.message
+                }
+            )
             raise ServiceError(
                 status=e.status,
                 code=e.code,

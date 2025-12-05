@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     api_version: str = "1.0.0"
     api_description: str = "FastAPI service for OCI business logic operations"
 
+    # Logging Configuration
+    log_level: str = "INFO"
+    log_format: str = "json"  # Options: "json" or "text"
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

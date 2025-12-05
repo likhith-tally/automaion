@@ -8,6 +8,9 @@ from typing import Optional, Dict, Any
 from oci.exceptions import ServiceError
 
 from app.services.oci_email_suppression import email_suppression_service
+from app.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 # Create router instance
@@ -79,14 +82,28 @@ async def check_suppression(
     """
     try:
         result = await email_suppression_service.check_suppression(email)
+        logger.info(
+            "Check suppression completed",
+            extra={"email": email, "is_suppressed": result["is_suppressed"]}
+        )
         return CheckSuppressionResponse(**result)
 
     except ServiceError as e:
+        logger.error(
+            "OCI service error in check endpoint",
+            extra={"email": email, "error": str(e.message)},
+            exc_info=True
+        )
         raise HTTPException(
             status_code=500,
             detail=f"OCI API Error: {e.message}"
         )
     except Exception as e:
+        logger.error(
+            "Unexpected error in check endpoint",
+            extra={"email": email, "error": str(e)},
+            exc_info=True
+        )
         raise HTTPException(
             status_code=500,
             detail=f"Internal server error: {str(e)}"
@@ -131,10 +148,22 @@ async def remove_suppression(
     """
     try:
         result = await email_suppression_service.remove_suppression(email)
+        logger.info(
+            "Remove suppression completed",
+            extra={
+                "email": email,
+                "suppression_id": result["suppression_id"],
+                "removed": True
+            }
+        )
         return RemoveSuppressionResponse(**result)
 
     except ValueError as e:
         # Email not in suppression list
+        logger.warning(
+            "Remove failed - email not found",
+            extra={"email": email, "error": str(e)}
+        )
         raise HTTPException(
             status_code=404,
             detail=str(e)
@@ -142,6 +171,11 @@ async def remove_suppression(
 
     except ServiceError as e:
         # OCI API error
+        logger.error(
+            "OCI service error in remove endpoint",
+            extra={"email": email, "error": str(e.message)},
+            exc_info=True
+        )
         raise HTTPException(
             status_code=500,
             detail=f"OCI API Error: {e.message}"
@@ -149,6 +183,11 @@ async def remove_suppression(
 
     except Exception as e:
         # Unexpected error
+        logger.error(
+            "Unexpected error in remove endpoint",
+            extra={"email": email, "error": str(e)},
+            exc_info=True
+        )
         raise HTTPException(
             status_code=500,
             detail=f"Internal server error: {str(e)}"
