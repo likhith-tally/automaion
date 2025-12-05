@@ -44,12 +44,12 @@ class EmailSuppressionService:
                 "Calling OCI API: list_suppressions",
                 extra={
                     "email": email,
-                    "compartment_id": settings.oci_tenancy_ocid[:20] + "..."
+                    "compartment_id": settings.parent_tenancy_ocid[:20] + "..."
                 }
             )
 
             response = self.client.list_suppressions(
-                compartment_id=settings.oci_tenancy_ocid,
+                compartment_id=settings.parent_tenancy_ocid,
                 email_address=email
             )
 

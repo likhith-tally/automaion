@@ -120,6 +120,22 @@ async def root():
     }
 
 
+# Configuration endpoint
+@app.get("/config", tags=["Health"])
+async def get_config():
+    """
+    Show current configuration (for debugging).
+    """
+    return {
+        "environment": settings.environment,
+        "region": settings.oci_region,
+        "parent_tenancy_ocid": settings.parent_tenancy_ocid[:20] + "...",  # Partial for security
+        "log_level": settings.log_level,
+        "log_format": settings.log_format,
+        "api_version": settings.api_version
+    }
+
+
 # Detailed health check endpoint
 @app.get("/health", tags=["Health"])
 async def health_check():
@@ -157,7 +173,9 @@ async def startup_event():
         extra={
             "service": settings.api_title,
             "version": settings.api_version,
+            "environment": settings.environment,
             "region": settings.oci_region,
+            "parent_tenancy": settings.parent_tenancy_ocid[:20] + "...",
             "log_level": settings.log_level,
             "log_format": settings.log_format
         }
